@@ -222,6 +222,15 @@
       longgar: { weekdayLimit: 100000, saturdayLimit: 200000, sundayLimit: 150000 },
     };
     const quickValues = [5000, 10000, 15000, 20000, 25000, 50000, 75000, 100000];
+    const autoRules = [
+      { category: 'Makan', daily: true, words: ['makan', 'nasi', 'ayam', 'bakso', 'mie', 'mi ', 'soto', 'warteg', 'padang', 'sarapan', 'lunch', 'dinner'] },
+      { category: 'Kopi/Jajan', daily: true, words: ['kopi', 'coffee', 'jajan', 'snack', 'roti', 'boba', 'es teh', 'teh', 'gorengan'] },
+      { category: 'Bensin', daily: true, words: ['bensin', 'bbm', 'pertalite', 'pertamax', 'solar', 'shell', 'spbu'] },
+      { category: 'Parkir', daily: true, words: ['parkir', 'tol', 'etoll', 'e-toll'] },
+      { category: 'Nongkrong', daily: true, words: ['nongkrong', 'cafe', 'kafe', 'bioskop', 'movie', 'karaoke'] },
+      { category: 'Belanja', daily: false, words: ['belanja', 'baju', 'sepatu', 'celana', 'tas', 'skincare', 'shopee', 'tokopedia', 'tiktok shop'] },
+      { category: 'Kesehatan', daily: false, words: ['obat', 'dokter', 'klinik', 'rs ', 'rumah sakit', 'vitamin', 'apotek'] },
+    ];
     let state = loadState();
 
     function loadState() {
@@ -263,6 +272,18 @@
       if (percent >= 81) return ['REM', 'bad', 'Tahan impulsif. Sisa sudah tipis.'];
       if (percent >= 51) return ['HATI-HATI', 'warn', 'Masih aman, tapi jangan random jajan.'];
       return ['AMAN', 'good', 'Masih oke.'];
+    }
+    function detectTx(titleText) {
+      const text = ` ${titleText.toLowerCase()} `;
+      return autoRules.find(rule => rule.words.some(word => text.includes(word))) || { category: 'Lainnya', daily: true };
+    }
+    function applyAutoDetect() {
+      if (editingId.value) return;
+      const text = title.value.trim();
+      if (!text) return;
+      const detected = detectTx(text);
+      category.value = detected.category;
+      included.value = String(detected.daily);
     }
     function addTx({date, title, amount, category='Lainnya', includedInDailyBudget=true, note=''}) {
       state.transactions.unshift({ id: crypto.randomUUID(), date: date || todayIso(), title, amount: Number(amount), category, includedInDailyBudget, note, createdAt: new Date().toISOString() });
@@ -350,6 +371,7 @@
       resetExpenseForm();
     });
     document.getElementById('cancelEdit').addEventListener('click', resetExpenseForm);
+    document.getElementById('title').addEventListener('input', applyAutoDetect);
     document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
       showTab(btn.dataset.tab);
     }));
