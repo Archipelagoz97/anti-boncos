@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Anti Boncos — Budget Guard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111c33;
+      --panel2: #17233d;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --line: rgba(148, 163, 184, .22);
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --accent: #38bdf8;
+      --soft: rgba(255,255,255,.06);
+      --shadow: 0 18px 45px rgba(0,0,0,.25);
+      --radius: 20px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, #1e3a8a 0, transparent 32%), var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { width: min(1120px, calc(100% - 28px)); margin: 0 auto; padding: 24px 0 48px; }
+    header { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 22px; }
+    h1 { margin: 0; font-size: clamp(26px, 5vw, 46px); letter-spacing: -0.05em; }
+    .sub { color: var(--muted); margin-top: 6px; font-size: 14px; }
+    .pill { border: 1px solid var(--line); padding: 8px 12px; border-radius: 999px; color: var(--muted); background: rgba(255,255,255,.04); font-size: 13px; white-space: nowrap; }
+    .grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 18px; }
+    .card { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025)); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
+    .hero { min-height: 330px; display: flex; flex-direction: column; justify-content: space-between; }
+    .row { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+    .stat { display: grid; gap: 4px; }
+    .label { color: var(--muted); font-size: 13px; }
+    .num { font-size: clamp(28px, 6vw, 58px); font-weight: 800; letter-spacing: -0.06em; line-height: 1; }
+    .smallnum { font-size: 24px; font-weight: 780; letter-spacing: -0.04em; }
+    .status { padding: 10px 14px; border-radius: 14px; font-weight: 750; font-size: 14px; border: 1px solid transparent; }
+    .status.good { color: #bbf7d0; background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.25); }
+    .status.warn { color: #fde68a; background: rgba(245,158,11,.13); border-color: rgba(245,158,11,.3); }
+    .status.bad { color: #fecaca; background: rgba(239,68,68,.13); border-color: rgba(239,68,68,.3); }
+    .bar { height: 14px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; border: 1px solid var(--line); }
+    .bar > div { height: 100%; width: 0%; transition: width .25s ease; background: var(--good); }
+    .bar.warn > div { background: var(--warn); }
+    .bar.bad > div { background: var(--bad); }
+    form { display: grid; gap: 10px; }
+    input, select, textarea, button { font: inherit; }
+    input, select, textarea {
+      width: 100%; background: rgba(255,255,255,.07); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 12px 13px; outline: none;
+    }
+    select option { background: #0f172a; color: var(--text); }
+    textarea { min-height: 76px; resize: vertical; }
+    button { cursor: pointer; border: 0; border-radius: 14px; padding: 12px 14px; color: white; background: var(--accent); font-weight: 760; }
+    button.secondary { background: rgba(255,255,255,.08); color: var(--text); border: 1px solid var(--line); }
+    button.danger { background: rgba(239,68,68,.14); color: #fecaca; border: 1px solid rgba(239,68,68,.26); }
+    button.small { padding: 8px 10px; font-size: 12px; border-radius: 10px; }
+    .form-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .quick button { padding: 10px 8px; font-size: 13px; }
+    .split { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .cards3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+    .mini { background: rgba(255,255,255,.045); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+    .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; }
+    h2 { margin: 0; font-size: 18px; letter-spacing: -0.02em; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 11px 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; }
+    td:last-child, th:last-child { text-align: right; }
+    .muted { color: var(--muted); }
+    .tag { font-size: 12px; color: var(--muted); border: 1px solid var(--line); padding: 4px 8px; border-radius: 999px; display: inline-block; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+    .tab { background: rgba(255,255,255,.06); border: 1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius: 999px; }
+    .tab.active { background: rgba(56,189,248,.18); border-color: rgba(56,189,248,.45); color: #bae6fd; }
+    .hidden { display: none; }
+    .footer-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    @media (max-width: 860px) {
+      header { align-items: flex-start; flex-direction: column; }
+      .grid { grid-template-columns: 1fr; }
+      .cards3 { grid-template-columns: 1fr; }
+      .quick { grid-template-columns: repeat(2, 1fr); }
+      .split { grid-template-columns: 1fr; }
+      th:nth-child(3), td:nth-child(3) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Anti Boncos</h1>
+        <div class="sub">Budget guard harian: catat cepat, lihat sisa, rem sebelum jebol.</div>
+      </div>
+      <div class="pill" id="todayLabel">Hari ini</div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="history">Riwayat</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </div>
+
+    <main id="dashboard">
+      <div class="grid">
+        <section class="card hero">
+          <div class="row">
+            <div class="stat">
+              <span class="label">Sisa budget hari ini</span>
+              <span class="num" id="remainingToday">Rp0</span>
+            </div>
+            <div class="status good" id="statusBadge">AMAN</div>
+          </div>
+
+          <div>
+            <div class="row" style="margin-bottom: 8px;">
+              <span class="label" id="progressLabel">Terpakai 0%</span>
+              <span class="label" id="todayBudgetLabel">Budget Rp0</span>
+            </div>
+            <div class="bar" id="progressBar"><div></div></div>
+          </div>
+
+          <div class="cards3">
+            <div class="mini">
+              <div class="label">Budget</div>
+              <div class="smallnum" id="budgetToday">Rp0</div>
+            </div>
+            <div class="mini">
+              <div class="label">Terpakai</div>
+              <div class="smallnum" id="spentToday">Rp0</div>
+            </div>
+            <div class="mini">
+              <div class="label">Efek ke Weekend</div>
+              <div class="smallnum" id="weekendImpact">Rp0</div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="card">
+          <div class="section-title"><h2>Catat pengeluaran</h2><span class="tag">localStorage</span></div>
+          <form id="expenseForm">
+            <input id="editingId" type="hidden" />
+            <input id="txDate" type="date" required />
+            <input id="title" placeholder="Nama: makan, bensin, parkir..." required />
+            <div class="split">
+              <input id="amount" type="number" min="1" step="1" inputmode="numeric" placeholder="Nominal" required />
+              <select id="category">
+                <option>Makan</option><option>Bensin</option><option>Parkir</option><option>Kopi/Jajan</option><option>Nongkrong</option><option>Belanja</option><option>Kesehatan</option><option>Lainnya</option>
+              </select>
+            </div>
+            <select id="included">
+              <option value="true">Masuk daily budget</option>
+              <option value="false">Tidak masuk daily budget</option>
+            </select>
+            <textarea id="note" placeholder="Catatan optional"></textarea>
+            <div class="form-actions">
+              <button id="submitExpense" type="submit">Tambah</button>
+              <button id="cancelEdit" class="secondary hidden" type="button">Batal</button>
+            </div>
+          </form>
+          <div class="section-title" style="margin-top: 16px;"><h2>Quick add</h2></div>
+          <div class="quick" id="quickAdd"></div>
+        </aside>
+      </div>
+
+      <section class="card" style="margin-top: 18px;">
+        <div class="section-title"><h2>Minggu ini</h2><span class="muted" id="weekRange"></span></div>
+        <div class="cards3">
+          <div class="mini"><div class="label">Budget Mingguan</div><div class="smallnum" id="weeklyBudget">Rp0</div></div>
+          <div class="mini"><div class="label">Terpakai Mingguan</div><div class="smallnum" id="weeklySpent">Rp0</div></div>
+          <div class="mini"><div class="label">Weekend Bonus / Debt</div><div class="smallnum" id="weeklyCarry">Rp0</div></div>
+        </div>
+      </section>
+    </main>
+
+    <main id="history" class="hidden">
+      <section class="card">
+        <div class="section-title"><h2>Riwayat transaksi</h2><button class="danger" id="clearData">Reset data</button></div>
+        <table>
+          <thead><tr><th>Tanggal</th><th>Nama</th><th>Kategori</th><th>Nominal</th><th>Aksi</th></tr></thead>
+          <tbody id="txTable"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <main id="settings" class="hidden">
+      <section class="card">
+        <div class="section-title"><h2>Settings budget</h2><span class="muted">ubah sesuai kondisi bulan ini</span></div>
+        <form id="settingsForm">
+          <select id="mode">
+            <option value="ketat">Ketat</option>
+            <option value="normal">Normal</option>
+            <option value="longgar">Longgar</option>
+            <option value="custom">Custom</option>
+          </select>
+          <div class="split">
+            <input id="weekdayLimit" type="number" step="1000" min="0" placeholder="Weekday limit" />
+            <input id="saturdayLimit" type="number" step="1000" min="0" placeholder="Sabtu limit" />
+          </div>
+          <input id="sundayLimit" type="number" step="1000" min="0" placeholder="Minggu limit" />
+          <button type="submit">Simpan settings</button>
+        </form>
+        <div class="footer-actions">
+          <button class="secondary" id="exportData">Export JSON</button>
+          <button class="secondary" id="importClick">Import JSON</button>
+          <input id="importFile" type="file" accept="application/json" style="display:none" />
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'anti-boncos-v1';
+    const presets = {
+      ketat: { weekdayLimit: 60000, saturdayLimit: 100000, sundayLimit: 75000 },
+      normal: { weekdayLimit: 80000, saturdayLimit: 150000, sundayLimit: 100000 },
+      longgar: { weekdayLimit: 100000, saturdayLimit: 200000, sundayLimit: 150000 },
+    };
+    const quickValues = [5000, 10000, 15000, 20000, 25000, 50000, 75000, 100000];
+    let state = loadState();
+
+    function loadState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+      return { settings: { mode: 'normal', ...presets.normal }, transactions: [] };
+    }
+    function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    const rupiah = n => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
+    const iso = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0,10);
+    const todayIso = () => iso(new Date());
+    function startOfWeek(date) {
+      const d = new Date(date); const day = d.getDay(); const diff = day === 0 ? -6 : 1 - day;
+      d.setDate(d.getDate() + diff); d.setHours(0,0,0,0); return d;
+    }
+    function endOfWeek(date) { const d = startOfWeek(date); d.setDate(d.getDate() + 6); return d; }
+    function budgetForDate(dateStr) {
+      const day = new Date(dateStr + 'T00:00:00').getDay();
+      if (day === 6) return Number(state.settings.saturdayLimit);
+      if (day === 0) return Number(state.settings.sundayLimit);
+      return Number(state.settings.weekdayLimit);
+    }
+    function transactionsFor(dateStr) { return state.transactions.filter(t => t.date === dateStr && t.includedInDailyBudget); }
+    function spentFor(dateStr) { return transactionsFor(dateStr).reduce((a,t) => a + Number(t.amount), 0); }
+    function currentWeekDates() {
+      const start = startOfWeek(new Date());
+      return Array.from({length: 7}, (_, i) => { const d = new Date(start); d.setDate(start.getDate()+i); return iso(d); });
+    }
+    function weeklySummary() {
+      const dates = currentWeekDates();
+      const budget = dates.reduce((a,d) => a + budgetForDate(d), 0);
+      const spent = state.transactions.filter(t => dates.includes(t.date) && t.includedInDailyBudget).reduce((a,t)=>a+Number(t.amount),0);
+      const weekdayDates = dates.slice(0,5);
+      const carry = weekdayDates.reduce((acc,d) => acc + (budgetForDate(d) - spentFor(d)), 0);
+      return { budget, spent, carry };
+    }
+    function statusFrom(percent) {
+      if (percent >= 100) return ['STOP', 'bad', 'Kalau tambah lagi, budget minggu ini makin kepotong.'];
+      if (percent >= 81) return ['REM', 'bad', 'Tahan impulsif. Sisa sudah tipis.'];
+      if (percent >= 51) return ['HATI-HATI', 'warn', 'Masih aman, tapi jangan random jajan.'];
+      return ['AMAN', 'good', 'Masih oke.'];
+    }
+    function addTx({date, title, amount, category='Lainnya', includedInDailyBudget=true, note=''}) {
+      state.transactions.unshift({ id: crypto.randomUUID(), date: date || todayIso(), title, amount: Number(amount), category, includedInDailyBudget, note, createdAt: new Date().toISOString() });
+      saveState(); render();
+    }
+    function updateTx(id, changes) {
+      const tx = state.transactions.find(t => t.id === id);
+      if (!tx) return;
+      Object.assign(tx, { ...changes, amount: Number(changes.amount), updatedAt: new Date().toISOString() });
+      saveState(); render();
+    }
+    function resetExpenseForm() {
+      expenseForm.reset();
+      editingId.value = '';
+      txDate.value = todayIso();
+      included.value = 'true';
+      submitExpense.textContent = 'Tambah';
+      cancelEdit.classList.add('hidden');
+    }
+    function openEditor(tx) {
+      editingId.value = tx.id;
+      txDate.value = tx.date || todayIso();
+      title.value = tx.title || '';
+      amount.value = tx.amount || '';
+      category.value = tx.category || 'Lainnya';
+      included.value = String(tx.includedInDailyBudget !== false);
+      note.value = tx.note || '';
+      submitExpense.textContent = 'Simpan';
+      cancelEdit.classList.remove('hidden');
+      showTab('dashboard');
+      title.focus();
+    }
+    function renderDashboard() {
+      const t = todayIso();
+      const budget = budgetForDate(t); const spent = spentFor(t); const remaining = budget - spent;
+      const percent = budget > 0 ? Math.min(130, (spent / budget) * 100) : 0;
+      const [label, cls] = statusFrom(percent);
+      document.getElementById('remainingToday').textContent = rupiah(remaining);
+      document.getElementById('budgetToday').textContent = rupiah(budget);
+      document.getElementById('spentToday').textContent = rupiah(spent);
+      document.getElementById('todayBudgetLabel').textContent = `Budget ${rupiah(budget)}`;
+      document.getElementById('progressLabel').textContent = `Terpakai ${Math.round(percent)}%`;
+      document.getElementById('weekendImpact').textContent = remaining >= 0 ? `+${rupiah(remaining)}` : `-${rupiah(Math.abs(remaining))}`;
+      const badge = document.getElementById('statusBadge'); badge.textContent = label; badge.className = `status ${cls}`;
+      const bar = document.getElementById('progressBar'); bar.className = `bar ${cls === 'good' ? '' : cls}`; bar.querySelector('div').style.width = `${Math.min(100, percent)}%`;
+      const ws = weeklySummary();
+      document.getElementById('weeklyBudget').textContent = rupiah(ws.budget);
+      document.getElementById('weeklySpent').textContent = rupiah(ws.spent);
+      document.getElementById('weeklyCarry').textContent = ws.carry >= 0 ? `+${rupiah(ws.carry)}` : `-${rupiah(Math.abs(ws.carry))}`;
+      const start = startOfWeek(new Date()); const end = endOfWeek(new Date());
+      document.getElementById('weekRange').textContent = `${iso(start)} sampai ${iso(end)}`;
+      document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    }
+    function renderQuickAdd() {
+      const el = document.getElementById('quickAdd'); el.innerHTML = '';
+      quickValues.forEach(v => { const b = document.createElement('button'); b.className='secondary'; b.textContent = `+${rupiah(v).replace('Rp','')}`; b.onclick = () => addTx({ title: `Quick add ${rupiah(v)}`, amount: v, category:'Lainnya' }); el.appendChild(b); });
+    }
+    function renderTable() {
+      const tbody = document.getElementById('txTable'); tbody.innerHTML = '';
+      if (!state.transactions.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">Belum ada transaksi.</td></tr>'; return; }
+      state.transactions.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${t.date}</td><td><strong>${escapeHtml(t.title)}</strong><br><span class="muted">${t.includedInDailyBudget ? 'daily' : 'non-daily'}</span></td><td>${escapeHtml(t.category)}</td><td>${rupiah(t.amount)}</td><td><div class="actions"><button class="secondary small" data-edit="${t.id}">Edit</button></div></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    function renderSettings() {
+      document.getElementById('mode').value = state.settings.mode;
+      document.getElementById('weekdayLimit').value = state.settings.weekdayLimit;
+      document.getElementById('saturdayLimit').value = state.settings.saturdayLimit;
+      document.getElementById('sundayLimit').value = state.settings.sundayLimit;
+    }
+    function escapeHtml(s) { return String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+    function render() { renderDashboard(); renderQuickAdd(); renderTable(); renderSettings(); }
+    function showTab(tabId) {
+      document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
+      ['dashboard','history','settings'].forEach(id => document.getElementById(id).classList.toggle('hidden', id !== tabId));
+    }
+
+    document.getElementById('expenseForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const payload = { date: txDate.value || todayIso(), title: title.value.trim(), amount: amount.value, category: category.value, includedInDailyBudget: included.value === 'true', note: note.value.trim() };
+      if (editingId.value) updateTx(editingId.value, payload);
+      else addTx(payload);
+      resetExpenseForm();
+    });
+    document.getElementById('cancelEdit').addEventListener('click', resetExpenseForm);
+    document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
+      showTab(btn.dataset.tab);
+    }));
+    document.getElementById('txTable').addEventListener('click', e => {
+      const editButton = e.target.closest('[data-edit]');
+      if (!editButton) return;
+      const tx = state.transactions.find(t => t.id === editButton.dataset.edit);
+      if (tx) openEditor(tx);
+    });
+    document.getElementById('mode').addEventListener('change', e => {
+      if (presets[e.target.value]) {
+        weekdayLimit.value = presets[e.target.value].weekdayLimit;
+        saturdayLimit.value = presets[e.target.value].saturdayLimit;
+        sundayLimit.value = presets[e.target.value].sundayLimit;
+      }
+    });
+    document.getElementById('settingsForm').addEventListener('submit', e => {
+      e.preventDefault();
+      state.settings = { mode: mode.value, weekdayLimit: Number(weekdayLimit.value), saturdayLimit: Number(saturdayLimit.value), sundayLimit: Number(sundayLimit.value) };
+      saveState(); render();
+    });
+    document.getElementById('clearData').onclick = () => { if (confirm('Reset semua transaksi?')) { state.transactions = []; saveState(); render(); } };
+    document.getElementById('exportData').onclick = () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `anti-boncos-backup-${todayIso()}.json`; a.click(); URL.revokeObjectURL(a.href);
+    };
+    document.getElementById('importClick').onclick = () => importFile.click();
+    document.getElementById('importFile').addEventListener('change', async e => {
+      const file = e.target.files[0]; if (!file) return;
+      const imported = JSON.parse(await file.text());
+      if (!imported.settings || !Array.isArray(imported.transactions)) return alert('File tidak valid.');
+      state = imported; saveState(); render();
+    });
+    render();
+    resetExpenseForm();
+  </script>
+</body>
+</html>
