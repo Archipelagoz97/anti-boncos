@@ -62,6 +62,8 @@
     button.small { padding: 8px 10px; font-size: 12px; border-radius: 10px; }
     .form-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
     .actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .filters select { width: auto; min-width: 150px; padding: 9px 11px; border-radius: 12px; }
     .quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
     .quick button { padding: 10px 8px; font-size: 13px; }
     .split { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -78,6 +80,9 @@
     .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
     .tab { background: rgba(255,255,255,.06); border: 1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius: 999px; }
     .tab.active { background: rgba(56,189,248,.18); border-color: rgba(56,189,248,.45); color: #bae6fd; }
+    .error { color: #fecaca; font-size: 13px; min-height: 18px; }
+    .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(420px, calc(100% - 28px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: #111c33; box-shadow: var(--shadow); z-index: 10; }
+    .toast button { padding: 8px 10px; border-radius: 10px; }
     .hidden { display: none; }
     .footer-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
     @media (max-width: 860px) {
@@ -143,7 +148,7 @@
 
         <aside class="card">
           <div class="section-title"><h2>Catat pengeluaran</h2><span class="tag">localStorage</span></div>
-          <form id="expenseForm">
+          <form id="expenseForm" novalidate>
             <input id="editingId" type="hidden" />
             <input id="txDate" type="date" required />
             <input id="title" placeholder="Nama: makan, bensin, parkir..." required />
@@ -158,6 +163,7 @@
               <option value="false">Tidak masuk daily budget</option>
             </select>
             <textarea id="note" placeholder="Catatan optional"></textarea>
+            <div class="error" id="formError"></div>
             <div class="form-actions">
               <button id="submitExpense" type="submit">Tambah</button>
               <button id="cancelEdit" class="secondary hidden" type="button">Batal</button>
@@ -176,11 +182,26 @@
           <div class="mini"><div class="label">Weekend Bonus / Debt</div><div class="smallnum" id="weeklyCarry">Rp0</div></div>
         </div>
       </section>
+
+      <section class="card" style="margin-top: 18px;">
+        <div class="section-title"><h2>Total kategori minggu ini</h2><span class="muted" id="categorySummaryTotal">Rp0</span></div>
+        <div class="cards3" id="categorySummary"></div>
+      </section>
     </main>
 
     <main id="history" class="hidden">
       <section class="card">
-        <div class="section-title"><h2>Riwayat transaksi</h2><button class="danger" id="clearData">Reset data</button></div>
+        <div class="section-title">
+          <h2>Riwayat transaksi</h2>
+          <div class="filters">
+            <select id="historyFilter">
+              <option value="today">Hari ini</option>
+              <option value="week" selected>Minggu ini</option>
+              <option value="all">Semua</option>
+            </select>
+            <button class="danger" id="clearData">Reset data</button>
+          </div>
+        </div>
         <table>
           <thead><tr><th>Tanggal</th><th>Nama</th><th>Kategori</th><th>Nominal</th><th>Aksi</th></tr></thead>
           <tbody id="txTable"></tbody>
@@ -213,6 +234,7 @@
       </section>
     </main>
   </div>
+  <div class="toast hidden" id="undoToast"><span id="undoMessage"></span><button class="secondary" id="undoAction" type="button">Undo</button></div>
 
   <script>
     const STORAGE_KEY = 'anti-boncos-v1';
@@ -221,7 +243,16 @@
       normal: { weekdayLimit: 80000, saturdayLimit: 150000, sundayLimit: 100000 },
       longgar: { weekdayLimit: 100000, saturdayLimit: 200000, sundayLimit: 150000 },
     };
-    const quickValues = [5000, 10000, 15000, 20000, 25000, 50000, 75000, 100000];
+    const quickPresets = [
+      { title: 'Makan', amount: 18000 },
+      { title: 'Kopi/Jajan', amount: 20000 },
+      { title: 'Bensin', amount: 50000 },
+      { title: 'Parkir', amount: 5000 },
+      { title: 'Nongkrong', amount: 50000 },
+      { title: 'Belanja', amount: 100000 },
+      { title: 'Obat', amount: 30000 },
+      { title: 'Lainnya', amount: 25000 },
+    ];
     const autoRules = [
       { category: 'Makan', daily: true, words: ['makan', 'nasi', 'ayam', 'bakso', 'mie', 'mi ', 'soto', 'warteg', 'padang', 'sarapan', 'lunch', 'dinner'] },
       { category: 'Kopi/Jajan', daily: true, words: ['kopi', 'coffee', 'jajan', 'snack', 'roti', 'boba', 'es teh', 'teh', 'gorengan'] },
@@ -232,6 +263,8 @@
       { category: 'Kesehatan', daily: false, words: ['obat', 'dokter', 'klinik', 'rs ', 'rumah sakit', 'vitamin', 'apotek'] },
     ];
     let state = loadState();
+    let activeHistoryFilter = 'week';
+    let lastUndo = null;
 
     function loadState() {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -267,6 +300,25 @@
       const carry = weekdayDates.reduce((acc,d) => acc + (budgetForDate(d) - spentFor(d)), 0);
       return { budget, spent, carry };
     }
+    function weeklyTransactions() {
+      const dates = currentWeekDates();
+      return state.transactions.filter(t => dates.includes(t.date));
+    }
+    function filteredTransactions() {
+      if (activeHistoryFilter === 'today') return state.transactions.filter(t => t.date === todayIso());
+      if (activeHistoryFilter === 'week') {
+        const dates = currentWeekDates();
+        return state.transactions.filter(t => dates.includes(t.date));
+      }
+      return state.transactions;
+    }
+    function categorySummary() {
+      return weeklyTransactions().reduce((acc, tx) => {
+        const key = tx.category || 'Lainnya';
+        acc[key] = (acc[key] || 0) + Number(tx.amount || 0);
+        return acc;
+      }, {});
+    }
     function statusFrom(percent) {
       if (percent >= 100) return ['STOP', 'bad', 'Kalau tambah lagi, budget minggu ini makin kepotong.'];
       if (percent >= 81) return ['REM', 'bad', 'Tahan impulsif. Sisa sudah tipis.'];
@@ -286,20 +338,69 @@
       included.value = String(detected.daily);
     }
     function addTx({date, title, amount, category='Lainnya', includedInDailyBudget=true, note=''}) {
-      state.transactions.unshift({ id: crypto.randomUUID(), date: date || todayIso(), title, amount: Number(amount), category, includedInDailyBudget, note, createdAt: new Date().toISOString() });
+      const tx = { id: crypto.randomUUID(), date: date || todayIso(), title, amount: Number(amount), category, includedInDailyBudget, note, createdAt: new Date().toISOString() };
+      state.transactions.unshift(tx);
+      setUndo('Transaksi ditambah.', () => {
+        state.transactions = state.transactions.filter(item => item.id !== tx.id);
+        saveState(); render();
+      });
       saveState(); render();
     }
     function updateTx(id, changes) {
       const tx = state.transactions.find(t => t.id === id);
       if (!tx) return;
+      const before = { ...tx };
       Object.assign(tx, { ...changes, amount: Number(changes.amount), updatedAt: new Date().toISOString() });
+      setUndo('Transaksi diubah.', () => {
+        const current = state.transactions.find(t => t.id === before.id);
+        if (current) Object.assign(current, before);
+        saveState(); render();
+      });
       saveState(); render();
+    }
+    function deleteTx(id) {
+      const index = state.transactions.findIndex(t => t.id === id);
+      if (index < 0) return;
+      const [removed] = state.transactions.splice(index, 1);
+      setUndo('Transaksi dihapus.', () => {
+        state.transactions.splice(index, 0, removed);
+        saveState(); render();
+      });
+      saveState(); render();
+    }
+    function setUndo(message, action) {
+      lastUndo = action;
+      undoMessage.textContent = message;
+      undoToast.classList.remove('hidden');
+    }
+    function runUndo() {
+      if (!lastUndo) return;
+      const action = lastUndo;
+      lastUndo = null;
+      undoToast.classList.add('hidden');
+      action();
+    }
+    function validateExpense() {
+      const value = Number(amount.value);
+      if (!title.value.trim()) {
+        formError.textContent = 'Nama pengeluaran wajib diisi.';
+        title.focus();
+        return false;
+      }
+      if (!Number.isFinite(value) || value <= 0) {
+        formError.textContent = 'Nominal harus angka lebih dari 0. Contoh: 18000.';
+        amount.focus();
+        return false;
+      }
+      formError.textContent = '';
+      return true;
     }
     function resetExpenseForm() {
       expenseForm.reset();
       editingId.value = '';
       txDate.value = todayIso();
       included.value = 'true';
+      formError.textContent = '';
       submitExpense.textContent = 'Tambah';
       cancelEdit.classList.add('hidden');
     }
@@ -337,16 +438,40 @@
       document.getElementById('weekRange').textContent = `${iso(start)} sampai ${iso(end)}`;
       document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
     }
+    function renderCategorySummary() {
+      const el = document.getElementById('categorySummary'); el.innerHTML = '';
+      const entries = Object.entries(categorySummary()).sort((a, b) => b[1] - a[1]);
+      const total = entries.reduce((sum, item) => sum + item[1], 0);
+      document.getElementById('categorySummaryTotal').textContent = rupiah(total);
+      if (!entries.length) {
+        el.innerHTML = '<div class="mini"><div class="label">Belum ada transaksi minggu ini</div><div class="smallnum">Rp0</div></div>';
+        return;
+      }
+      entries.forEach(([name, value]) => {
+        const card = document.createElement('div');
+        card.className = 'mini';
+        card.innerHTML = `<div class="label">${escapeHtml(name)}</div><div class="smallnum">${rupiah(value)}</div>`;
+        el.appendChild(card);
+      });
+    }
     function renderQuickAdd() {
       const el = document.getElementById('quickAdd'); el.innerHTML = '';
-      quickValues.forEach(v => { const b = document.createElement('button'); b.className='secondary'; b.textContent = `+${rupiah(v).replace('Rp','')}`; b.onclick = () => addTx({ title: `Quick add ${rupiah(v)}`, amount: v, category:'Lainnya' }); el.appendChild(b); });
+      quickPresets.forEach(item => {
+        const detected = detectTx(item.title);
+        const b = document.createElement('button');
+        b.className='secondary';
+        b.textContent = `${item.title} ${rupiah(item.amount).replace('Rp','')}`;
+        b.onclick = () => addTx({ title: item.title, amount: item.amount, category: detected.category, includedInDailyBudget: detected.daily });
+        el.appendChild(b);
+      });
     }
     function renderTable() {
       const tbody = document.getElementById('txTable'); tbody.innerHTML = '';
-      if (!state.transactions.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">Belum ada transaksi.</td></tr>'; return; }
-      state.transactions.forEach(t => {
+      const rows = filteredTransactions();
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">Belum ada transaksi.</td></tr>'; return; }
+      rows.forEach(t => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${t.date}</td><td><strong>${escapeHtml(t.title)}</strong><br><span class="muted">${t.includedInDailyBudget ? 'daily' : 'non-daily'}</span></td><td>${escapeHtml(t.category)}</td><td>${rupiah(t.amount)}</td><td><div class="actions"><button class="secondary small" data-edit="${t.id}">Edit</button></div></td>`;
+        tr.innerHTML = `<td>${t.date}</td><td><strong>${escapeHtml(t.title)}</strong><br><span class="muted">${t.includedInDailyBudget ? 'daily' : 'non-daily'}</span></td><td>${escapeHtml(t.category)}</td><td>${rupiah(t.amount)}</td><td><div class="actions"><button class="secondary small" data-edit="${t.id}">Edit</button><button class="danger small" data-delete="${t.id}">Hapus</button></div></td>`;
         tbody.appendChild(tr);
       });
     }
@@ -357,7 +482,7 @@
       document.getElementById('sundayLimit').value = state.settings.sundayLimit;
     }
     function escapeHtml(s) { return String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
-    function render() { renderDashboard(); renderQuickAdd(); renderTable(); renderSettings(); }
+    function render() { renderDashboard(); renderCategorySummary(); renderQuickAdd(); renderTable(); renderSettings(); }
     function showTab(tabId) {
       document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
       ['dashboard','history','settings'].forEach(id => document.getElementById(id).classList.toggle('hidden', id !== tabId));
@@ -365,6 +490,7 @@
 
     document.getElementById('expenseForm').addEventListener('submit', e => {
       e.preventDefault();
+      if (!validateExpense()) return;
       const payload = { date: txDate.value || todayIso(), title: title.value.trim(), amount: amount.value, category: category.value, includedInDailyBudget: included.value === 'true', note: note.value.trim() };
       if (editingId.value) updateTx(editingId.value, payload);
       else addTx(payload);
@@ -372,14 +498,21 @@
     });
     document.getElementById('cancelEdit').addEventListener('click', resetExpenseForm);
     document.getElementById('title').addEventListener('input', applyAutoDetect);
+    document.getElementById('amount').addEventListener('input', () => { formError.textContent = ''; });
+    document.getElementById('undoAction').addEventListener('click', runUndo);
+    document.getElementById('historyFilter').addEventListener('change', e => { activeHistoryFilter = e.target.value; renderTable(); });
     document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
       showTab(btn.dataset.tab);
     }));
     document.getElementById('txTable').addEventListener('click', e => {
       const editButton = e.target.closest('[data-edit]');
-      if (!editButton) return;
-      const tx = state.transactions.find(t => t.id === editButton.dataset.edit);
-      if (tx) openEditor(tx);
+      const deleteButton = e.target.closest('[data-delete]');
+      if (editButton) {
+        const tx = state.transactions.find(t => t.id === editButton.dataset.edit);
+        if (tx) openEditor(tx);
+        return;
+      }
+      if (deleteButton && confirm('Hapus transaksi ini?')) deleteTx(deleteButton.dataset.delete);
     });
     document.getElementById('mode').addEventListener('change', e => {
       if (presets[e.target.value]) {
