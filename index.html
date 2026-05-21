@@ -69,6 +69,8 @@
     .split { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .cards3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
     .mini { background: rgba(255,255,255,.045); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+    .coach { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 12px; }
+    .coach strong { color: var(--text); }
     .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; }
     h2 { margin: 0; font-size: 18px; letter-spacing: -0.02em; }
     table { width: 100%; border-collapse: collapse; }
@@ -144,6 +146,7 @@
               <div class="smallnum" id="weekendImpact">Rp0</div>
             </div>
           </div>
+          <div class="coach" id="budgetCoach"></div>
         </section>
 
         <aside class="card">
@@ -238,6 +241,8 @@
 
   <script>
     const STORAGE_KEY = 'anti-boncos-v1';
+    const RECOVERY_DAYS = 5;
+    const RECOVERY_FLOOR = 60000;
     const presets = {
       ketat: { weekdayLimit: 60000, saturdayLimit: 100000, sundayLimit: 75000 },
       normal: { weekdayLimit: 80000, saturdayLimit: 150000, sundayLimit: 100000 },
@@ -274,6 +279,11 @@
       d.setDate(d.getDate() + diff); d.setHours(0,0,0,0); return d;
     }
     function endOfWeek(date) { const d = startOfWeek(date); d.setDate(d.getDate() + 6); return d; }
+    function addDays(dateStr, days) {
+      const d = new Date(dateStr + 'T00:00:00');
+      d.setDate(d.getDate() + days);
+      return iso(d);
+    }
     function budgetForDate(dateStr) {
       const day = new Date(dateStr + 'T00:00:00').getDay();
       if (day === 6) return Number(state.settings.saturdayLimit);
@@ -282,6 +292,15 @@
     }
     function transactionsFor(dateStr) { return state.transactions.filter(t => t.date === dateStr && t.includedInDailyBudget); }
     function spentFor(dateStr) { return transactionsFor(dateStr).reduce((a,t) => a + Number(t.amount), 0); }
+    function adaptiveBudgetForDate(dateStr) {
+      const base = budgetForDate(dateStr);
+      const previousDate = addDays(dateStr, -1);
+      const previousOver = Math.max(0, spentFor(previousDate) - budgetForDate(previousDate));
+      const recovery = previousOver ? Math.ceil((previousOver / RECOVERY_DAYS) / 1000) * 1000 : 0;
+      const floor = Math.min(RECOVERY_FLOOR, base);
+      const budget = Math.max(floor, base - recovery);
+      return { base, budget, recovery: base - budget, previousOver, previousDate };
+    }
     function currentWeekDates() {
       const start = startOfWeek(new Date());
       return Array.from({length: 7}, (_, i) => { const d = new Date(start); d.setDate(start.getDate()+i); return iso(d); });
@@ -413,15 +432,19 @@
     }
     function renderDashboard() {
       const t = todayIso();
-      const budget = budgetForDate(t); const spent = spentFor(t); const remaining = budget - spent;
+      const adaptive = adaptiveBudgetForDate(t);
+      const budget = adaptive.budget; const spent = spentFor(t); const remaining = budget - spent;
       const percent = budget > 0 ? Math.min(130, (spent / budget) * 100) : 0;
       const [label, cls] = statusFrom(percent);
       document.getElementById('remainingToday').textContent = rupiah(remaining);
       document.getElementById('budgetToday').textContent = rupiah(budget);
       document.getElementById('spentToday').textContent = rupiah(spent);
-      document.getElementById('todayBudgetLabel').textContent = `Budget ${rupiah(budget)}`;
+      document.getElementById('todayBudgetLabel').textContent = adaptive.recovery ? `Budget ${rupiah(budget)} dari ${rupiah(adaptive.base)}` : `Budget ${rupiah(budget)}`;
       document.getElementById('progressLabel').textContent = `Terpakai ${Math.round(percent)}%`;
       document.getElementById('weekendImpact').textContent = remaining >= 0 ? `+${rupiah(remaining)}` : `-${rupiah(Math.abs(remaining))}`;
+      document.getElementById('budgetCoach').innerHTML = adaptive.recovery
+        ? `Kemarin over <strong>${rupiah(adaptive.previousOver)}</strong>. Hari ini dikurangi <strong>${rupiah(adaptive.recovery)}</strong> supaya rata-rata tetap on track, dengan floor ${rupiah(Math.min(RECOVERY_FLOOR, adaptive.base))}.`
+        : 'Tidak ada recovery dari kemarin. Budget hari ini pakai limit normal.';
       const badge = document.getElementById('statusBadge'); badge.textContent = label; badge.className = `status ${cls}`;
       const bar = document.getElementById('progressBar'); bar.className = `bar ${cls === 'good' ? '' : cls}`; bar.querySelector('div').style.width = `${Math.min(100, percent)}%`;
       const ws = weeklySummary();
